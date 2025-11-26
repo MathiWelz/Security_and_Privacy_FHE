@@ -6,7 +6,7 @@ import argparse
 from models import LoanApplicant
 
 def load_config():
-    with open("config.toml", "rb") as f:
+    with open("../config.toml", "rb") as f:
         return tomli.load(f)
 
 def generate_loan_data():
