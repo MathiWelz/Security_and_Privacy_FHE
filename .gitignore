@@ -1,0 +1,14 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Generated Data Folder
+data/
+
+# Environment variables (if any)
+.env
+
+# OS specific files
+.DS_Store
+Thumbs.db
