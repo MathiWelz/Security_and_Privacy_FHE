@@ -1,37 +1,46 @@
-# Makefile
-VENV := .venv
-PYTHON := $(VENV)/bin/python
-PIP := $(VENV)/bin/pip
+# Makefile for Privacy-Preserving Salary Audit Project
+# Compatible with Windows, Mac, and Linux
 
-.PHONY: setup generate encrypt analyze decrypt run-examples clean
+# -------------------------------------------------------------------------
+# OS Detection & Command Setup
+# -------------------------------------------------------------------------
 
-# 1. Create venv and install dependencies
+# Default to Unix-style commands (Mac/Linux)
+PYTHON_CMD = python3
+PIP_CMD = pip3
+# Cleanup command: uses standard 'rm'
+CLEANUP_CMD = rm -rf data/
+
+# If Windows_NT is detected, override with Windows-style commands
+ifeq ($(OS),Windows_NT)
+    PYTHON_CMD = python
+    PIP_CMD = pip
+    # Cleanup command: uses Python's shutil to avoid CMD/PowerShell syntax issues
+    CLEANUP_CMD = $(PYTHON_CMD) -c "import shutil, os; os.path.exists('data') and shutil.rmtree('data'); print('Data folder removed.')"
+endif
+
+# -------------------------------------------------------------------------
+# Targets
+# -------------------------------------------------------------------------
+
+.PHONY: setup run clean
+
+# Target 1: Install Dependencies
 setup:
-	python3 -m venv $(VENV)
-	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
+	@echo "Detected OS: $(OS)"
+	@echo "Installing dependencies using $(PIP_CMD)..."
+	$(PYTHON_CMD) -m pip install phe tenseal pandas numpy configparser
+	@echo "Setup complete."
 
-# 2. Generate the synthetic Loan CSV
-generate:
-	$(PYTHON) src/generate_data.py
+# Target 2: Run the Full Simulation
+run:
+	@echo "Generating Dataset..."
+	$(PYTHON_CMD) dataset_gen.py
+	@echo "Running Homomorphic Encryption Simulation..."
+	$(PYTHON_CMD) main.py
 
-# 3. Individual Steps
-encrypt:
-	$(PYTHON) src/data_holder.py --action encrypt
-
-analyze:
-	$(PYTHON) src/data_analyzer.py
-
-decrypt:
-	$(PYTHON) src/data_holder.py --action decrypt
-
-# 4. Run the full flow in one command
-run-examples: generate encrypt analyze decrypt
-	@echo "-----------------------------------"
-	@echo "Full Loan Application flow completed."
-
+# Target 3: Clean Generated Files
 clean:
-	rm -rf $(VENV)
-	rm -rf data/*
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
+	@echo "Cleaning up generated files..."
+	$(CLEANUP_CMD)
+	@echo "Clean complete."

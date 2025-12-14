@@ -1,1 +1,0 @@
-from .loan_applicant import LoanApplicant
