@@ -6,12 +6,11 @@ from phe import paillier
 from fhe_lib import PaillierTool, TenSEALTool
 
 class DataHolder:
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, phe_n_length=1024, ts_poly=8192, ts_coeff=[60, 40, 40, 60]):
         self.data_dir = data_dir
         self.dataset_path = None
-        # Initialize Crypto Tools
-        self.phe_tool = PaillierTool()
-        self.ts_tool = TenSEALTool()
+        self.phe_tool = PaillierTool(n_length=phe_n_length)
+        self.ts_tool = TenSEALTool(poly_modulus_degree=ts_poly, coeff_mod_bit_sizes=ts_coeff)
 
     def load_dataset(self, filename):
         self.dataset_path = os.path.join(self.data_dir, filename)
@@ -20,13 +19,11 @@ class DataHolder:
             
         df = pd.read_csv(self.dataset_path)
         print(f"[Holder] Loaded dataset: {len(df)} rows.")
-        # IMPORTANT: We only take the Salary column
         return df['Salary'].tolist()
 
     # --- PAILLIER WORKFLOW ---
     def encrypt_paillier(self, data, filename):
         print(f"[Holder] Encrypting {len(data)} items with Paillier...")
-        # The tool now handles the loop and progress printing
         enc_list = self.phe_tool.encrypt_list(data)
         serialized = self.phe_tool.serialize_encrypted_data(enc_list)
         
@@ -56,15 +53,18 @@ class DataHolder:
         with open(path, 'wb') as f:
             f.write(enc_vector.serialize())
         print(f"[Holder] Sent encrypted file to: {filename}")
+
+    def save_tenseal_context(self, filename):
+        """Helper to save the key/context for the Analyzer to use."""
+        path = os.path.join(self.data_dir, filename)
+        self.ts_tool.save_context(path, save_secret=False)
         
     def decrypt_tenseal(self, filename):
         path = os.path.join(self.data_dir, filename)
-        # FIX APPLIED: Changed 'wb' to 'rb' because we are reading results
         with open(path, 'rb') as f:
             proto = f.read()
         enc_vector = ts.ckks_vector_from(self.ts_tool.context, proto)
         result = enc_vector.decrypt()
-        # Returns Mean
         return result[0]
 
 
@@ -83,12 +83,10 @@ class DataAnalyzer:
         pub_key = paillier.PaillierPublicKey(n=int(data['public_key']['n']))
         enc_values = [paillier.EncryptedNumber(pub_key, int(x[0]), int(x[1])) for x in data['values']]
         
-        # Operations
         print(f"  > Summing {len(enc_values)} items...")
         total_sum = sum(enc_values)
         
         print("  > Calculating Mean...")
-        # Multiply by 1/N
         mean = total_sum * (1 / len(enc_values))
         
         results = {
@@ -103,16 +101,22 @@ class DataAnalyzer:
         print(f"[Analyzer] Computations complete. Saved to {output_file}")
 
     # --- TENSEAL ANALYSIS ---
-    def process_tenseal(self, input_file, output_file, context_helper):
+    def process_tenseal(self, input_file, output_file, context_filename):
         print("[Analyzer] Processing TenSEAL file...")
         in_path = os.path.join(self.data_dir, input_file)
+        ctx_path = os.path.join(self.data_dir, context_filename)
+
+        # 1. Load the Context (Keys) from text file
+        print(f"  > Loading context from {context_filename}...")
+        context = TenSEALTool.load_context(ctx_path)
         
-        # FIX APPLIED: Changed 'wb' to 'rb' here as well
+        # 2. Load Data
         with open(in_path, 'rb') as f:
             proto = f.read()
         
-        enc_vector = ts.ckks_vector_from(context_helper.context, proto)
+        enc_vector = ts.ckks_vector_from(context, proto)
         
+        # 3. Compute
         enc_sum = enc_vector.sum()
         enc_mean = enc_sum.mul(1/enc_vector.size())
         

@@ -155,3 +155,5 @@ Simulation parameters can be adjusted via `config.ini`.
 
 * **`DATA_SIZE`** – Number of employees to generate (default: `13000`)
 * **`RAW_DATASET`** – Name of the input CSV file
+
+![alt text](image.png)
